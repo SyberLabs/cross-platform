@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SyberLabs — Instrument Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+
+<nav class="rail">
+  <div class="brand">
+    <h1>SyberLabs</h1>
+    <div class="sub">Instrument panel · live systems</div>
+  </div>
+  <div class="rail-scroll">
+    <div class="rail-group-label">Systems</div>
+    <div id="instrument-list"></div>
+    <div class="rail-group-label">Seams</div>
+    <div id="seam-list"></div>
+  </div>
+  <div class="rail-foot">
+    <div class="row"><span>session</span><span id="foot-session">—</span></div>
+    <div class="row"><span>events</span><span id="foot-events" class="num">0</span></div>
+    <div class="row"><span>inference</span><span id="foot-inference">—</span></div>
+  </div>
+</nav>
+
+<main class="stage" id="stage">
+  <div class="stage-head">
+    <h2>Loading…</h2>
+  </div>
+</main>
+
+<aside class="stream">
+  <header>
+    <span class="pulse" id="pulse"></span>
+    <h3>Event stream</h3>
+    <span style="flex:1"></span>
+    <button class="act" id="clear-filter" style="padding:3px 8px;font-size:10px;display:none">clear filter</button>
+  </header>
+  <div class="stream-list" id="stream-list">
+    <div class="empty">No events yet. Run something.</div>
+  </div>
+</aside>
+
+<div class="drawer" id="drawer">
+  <div class="sheet">
+    <header>
+      <h3 id="drawer-title">Inspector</h3>
+      <button class="close" id="drawer-close">&times;</button>
+    </header>
+    <div class="content" id="drawer-content"></div>
+  </div>
+</div>
+
+<script type="module" src="/assets/app.js"></script>
+</body>
+</html>

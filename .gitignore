@@ -1,0 +1,13 @@
+# platform runtime
+.venv/
+.tooling/
+__pycache__/
+*.py[cod]
+platform/backend/_probe*.py
+
+# source systems are cloned, not vendored
+systems/
+
+# scratch
+*.log
+.pytest_cache/

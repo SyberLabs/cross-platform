@@ -1,0 +1,6 @@
+# Keep checkouts byte-identical across platforms.
+# This is not incidental: SyberRuntime's acceptance gate binds a sha256 to a
+# documentation file, and Git's CRLF conversion silently breaks that binding.
+# Any repository in this constellation should normalize to LF.
+* text=auto eol=lf
+*.png binary
