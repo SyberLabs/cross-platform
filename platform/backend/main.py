@@ -33,6 +33,7 @@ from fastapi.staticfiles import StaticFiles
 from barn.api import create_app as create_barn_app
 
 import scenarios as scenario_lib
+import solution_builder as solution_lib
 from contract import EventContext, EventSink, SystemRefusal, acting
 from adapters.barn_adapter import BarnAdapter
 from adapters.bough_adapter import FAMILIES, BoughAdapter
@@ -249,6 +250,37 @@ async def source(system: str = Query(...), path: str = Query(...)) -> dict[str, 
         "lines": text.splitlines(),
         "bytes": len(text.encode("utf-8")),
     }
+
+
+# --------------------------------------------------------------------------
+# solution builder
+# --------------------------------------------------------------------------
+
+
+@app.get("/api/solutions/capabilities")
+async def solution_capabilities() -> dict[str, Any]:
+    """Capabilities available to the compositional solution surface."""
+    return {"capabilities": solution_lib.capability_catalog()}
+
+
+@app.get("/api/solutions/templates")
+async def solution_templates() -> dict[str, Any]:
+    """Known solution topologies. Metadata only; no system is executed here."""
+    return {"templates": solution_lib.template_catalog()}
+
+
+@app.post("/api/solutions/validate")
+async def solution_validate(body: dict = Body(...)) -> dict[str, Any]:
+    """Validate node ids, capabilities, typed edges and v0 DAG semantics."""
+    return solution_lib.validate_solution(body)
+
+
+@app.get("/api/solutions/templates/{template_id}")
+async def solution_template(template_id: str) -> dict[str, Any]:
+    template = solution_lib.TEMPLATES.get(template_id)
+    if template is None:
+        raise HTTPException(404, f"unknown solution template: {template_id}")
+    return {"template": template.to_dict()}
 
 
 # --------------------------------------------------------------------------
