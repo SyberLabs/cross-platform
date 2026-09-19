@@ -321,6 +321,7 @@ function renderRail() {
       el('div', { class: 'prim' }, sys.available ? sys.primitive : 'unavailable'));
     return btn;
   }));
+  list.prepend(seamButton('builder', 'Solution Builder', 'compose typed capabilities'));
 
   const seams = document.getElementById('seam-list');
   seams.replaceChildren(
@@ -373,7 +374,7 @@ async function boot() {
   connectStream();
   const prior = await api('/api/events');
   prior.events.forEach(pushEvent);
-  select('syber_runtime');
+  select('builder');
 }
 
 boot().catch((err) => {
