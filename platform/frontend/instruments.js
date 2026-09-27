@@ -1535,6 +1535,233 @@ function handoffTimeline(r, wasLive) {
 }
 
 /* =================================================================
+   Solution Builder — outcome-first composition over real capabilities
+   ================================================================= */
+
+async function builderInstrument() {
+  const [{ capabilities }, { templates }] = await Promise.all([
+    api('/api/solutions/capabilities'),
+    api('/api/solutions/templates'),
+  ]);
+
+  let selected = templates[0];
+  const graphHost = el('div');
+  const runHost = el('div', {},
+    el('div', { class: 'empty' }, 'Choose a proven solution and run it against the real systems.'));
+
+  const capById = new Map(capabilities.map((cap) => [cap.id, cap]));
+
+  function nodeCard(node) {
+    const cap = capById.get(node.capability);
+    return el('div', {
+      class: 'panel',
+      style: 'margin:0;min-width:180px;max-width:240px;flex:1',
+    },
+      el('header', {},
+        el('h3', {}, cap?.verb || 'Step'),
+        el('span', { class: 'spacer' }),
+        el('span', { class: 'tag' }, cap?.system || 'cross')),
+      el('div', { class: 'body' },
+        el('div', { style: 'font-weight:600;margin-bottom:6px' }, node.label || cap?.label || node.capability),
+        el('div', { class: 'dim', style: 'font-size:11px;line-height:1.5' }, cap?.description || ''),
+        cap?.mayRefuse ? el('div', { style: 'margin-top:8px' },
+          el('span', { class: 'tag refused' }, 'may refuse')) : null));
+  }
+
+  function renderGraph(tpl) {
+    const wrap = el('div', {});
+    wrap.append(
+      el('p', { class: 'lede', style: 'margin:0 0 12px' }, tpl.goal),
+      el('p', { class: 'dim', style: 'margin:0 0 16px' }, tpl.description),
+    );
+    const row = el('div', { style: 'display:flex;gap:8px;align-items:stretch;flex-wrap:wrap' });
+    tpl.nodes.forEach((node, i) => {
+      row.append(nodeCard(node));
+      if (i < tpl.nodes.length - 1) {
+        row.append(el('div', {
+          class: 'faint mono',
+          style: 'display:flex;align-items:center;padding:0 2px;font-size:18px',
+        }, '→'));
+      }
+    });
+    wrap.append(row);
+
+    if (tpl.edges?.length) {
+      wrap.append(el('div', { style: 'height:12px' }),
+        el('details', {},
+          el('summary', { class: 'faint mono', style: 'cursor:pointer;font-size:11px' },
+            `typed edges (${tpl.edges.length})`),
+          jsonBlock(tpl.edges)));
+    }
+
+    const actions = el('div', { class: 'btn-row', style: 'margin-top:14px' });
+    actions.append(el('button', {
+      class: 'act',
+      onclick: async () => {
+        const v = await api('/api/solutions/validate', {
+          method: 'POST',
+          body: { nodes: tpl.nodes, edges: tpl.edges },
+        });
+        openDrawer('Solution validation', el('div', {},
+          notice(v.valid ? 'ok' : 'error',
+            v.valid ? 'Typed graph is valid' : 'Solution graph is invalid',
+            `${v.nodeCount} nodes · ${v.edgeCount} edges`),
+          el('div', { style: 'height:10px' }),
+          jsonBlock(v)));
+      },
+    }, 'Validate graph'));
+
+    if (tpl.runner === 'reviewed-ai-artifact') {
+      actions.append(el('button', {
+        class: 'act primary',
+        onclick: () => runReviewedArtifact(),
+      }, 'Run solution'));
+    } else {
+      actions.append(el('span', { class: 'faint mono', style: 'font-size:10px;align-self:center' },
+        'execution wiring not yet promoted into the builder'));
+    }
+    wrap.append(actions);
+    graphHost.replaceChildren(wrap);
+  }
+
+  async function runReviewedArtifact() {
+    runHost.replaceChildren(el('div', { style: 'padding:14px' }, el('span', { class: 'spin' })));
+    try {
+      const packet = {
+        schema: 'relay.packet.v1',
+        job: {
+          id: 'solution_demo_001',
+          key: 'greenhouse:acme:4455',
+          name: 'Platform Engineer',
+          url: 'https://job-boards.greenhouse.io/acme/jobs/4455',
+          version: 1,
+          status: 'Held',
+        },
+        facts: 'Shipped 4 production services at Acme.\nLed a migration to Kubernetes across 3 teams.',
+        draft: '',
+      };
+      const suppliedDraft = 'I shipped 4 production services at Acme.';
+      const handoff = await api('/api/relay/handoff', {
+        method: 'POST',
+        body: { packet, provider: 'chatgpt', live: false, draft: suppliedDraft },
+      });
+      const bound = await api('/api/cross/relay-to-runtime', {
+        method: 'POST',
+        body: { draft: handoff.draft },
+      });
+
+      const verifyBtn = el('button', {
+        class: 'act primary',
+        onclick: async () => {
+          verifyBtn.disabled = true;
+          try {
+            const reviewed = await api('/api/cross/review-draft', {
+              method: 'POST',
+              body: {
+                threadId: bound.threadId,
+                artifactDigest: bound.artifactDigest,
+                check: { kind: 'text_contains', expected: 'production services' },
+              },
+            });
+            runHost.append(el('div', { style: 'height:12px' }),
+              notice(reviewed.stabilized ? 'ok' : 'refused',
+                reviewed.stabilized
+                  ? 'Verified and stabilized'
+                  : 'Verification ran; stabilization still refused',
+                reviewed.verification?.details || 'see event stream'),
+              el('div', { style: 'height:8px' }),
+              el('button', {
+                class: 'act',
+                onclick: () => openDrawer('Final solution result', jsonBlock(reviewed)),
+              }, 'Inspect final result'));
+          } catch (e) {
+            runHost.append(refusalNotice(e));
+          }
+        },
+      }, 'Run review and try stabilization');
+
+      runHost.replaceChildren(
+        notice('ok', 'Relay handoff returned through its trust boundary',
+          'Identity/version validation ran before the draft entered the seam.'),
+        el('div', { style: 'height:8px' }),
+        bound.preReview?.stabilized
+          ? notice('error', 'Unexpectedly stabilized before review',
+            'This template expects a verification obligation to block stabilization.')
+          : notice('refused', 'Commit blocked before review — expected',
+            bound.preReview?.refusal?.message || 'SyberRuntime refused stabilization.'),
+        el('div', { style: 'height:10px' }),
+        kv([
+          ['thread', short(bound.threadId, 24)],
+          ['artifact', short(bound.artifactDigest, 24)],
+          ['residual debt', num(bound.state?.debt?.totalResidual, 2)],
+        ]),
+        el('div', { class: 'btn-row', style: 'margin-top:12px' },
+          verifyBtn,
+          el('button', {
+            class: 'act',
+            onclick: () => openDrawer('Execution record',
+              jsonBlock({ handoff, relayToRuntime: bound })),
+          }, 'Inspect execution')),
+      );
+    } catch (e) {
+      runHost.replaceChildren(refusalNotice(e));
+    }
+  }
+
+  const recipeButtons = el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' },
+    ...templates.map((tpl) => el('button', {
+      class: `act${tpl.id === selected.id ? ' primary' : ''}`,
+      onclick: (ev) => {
+        selected = tpl;
+        [...recipeButtons.querySelectorAll('button')].forEach((b) => b.classList.remove('primary'));
+        ev.currentTarget.classList.add('primary');
+        renderGraph(tpl);
+        runHost.replaceChildren(el('div', { class: 'empty' },
+          tpl.executable ? 'Ready to run.' : 'This topology is visible, but its builder execution path is not promoted yet.'));
+      },
+    }, tpl.name)));
+
+  const palette = el('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' },
+    ...capabilities.map((cap) => el('button', {
+      class: 'act',
+      style: 'font-size:10px',
+      onclick: () => openDrawer(cap.label, el('div', {},
+        kv([
+          ['verb', cap.verb],
+          ['source system', cap.system],
+          ['execution', cap.execution],
+          ['may refuse', cap.mayRefuse ? 'yes' : 'no'],
+        ]),
+        el('div', { style: 'height:10px' }),
+        el('p', { class: 'dim' }, cap.description),
+        el('div', { style: 'height:8px' }),
+        jsonBlock({ inputs: cap.inputs, outputs: cap.outputs }))),
+    }, `${cap.verb} · ${cap.label}`)));
+
+  renderGraph(selected);
+
+  return stageScoped('cross', null,
+    head({
+      id: 'cross',
+      title: 'Solution Builder',
+      badge: 'typed composition',
+      lede: 'Start from an outcome, then compose only capabilities whose real input/output semantics can be licensed.',
+      origin: 'builder metadata → existing adapters/seams → real source systems · no implicit cross-system conversion',
+    }),
+    panel('1 · What are you trying to accomplish?', el('div', {},
+      el('textarea', {
+        placeholder: 'Example: Let an external model propose an artifact, but require evidence before it can become authoritative.',
+        style: 'min-height:72px',
+      }, selected.goal),
+      el('p', { class: 'faint', style: 'margin:8px 0 0;font-size:11px' },
+        'V0 uses proven templates rather than pretending arbitrary natural-language synthesis is already safe.'))),
+    panel('2 · Proven solution topologies', el('div', {}, recipeButtons,
+      el('div', { style: 'height:14px' }), graphHost)),
+    panel('3 · Run', runHost),
+    panel('Capability palette', palette));
+}
+
+/* =================================================================
    Seams
    ================================================================= */
 
@@ -1733,6 +1960,7 @@ systems/            the source repositories, unmodified`),
 /* ================================================================= */
 
 export const INSTRUMENTS = {
+  builder: { render: builderInstrument },
   syber_runtime: { render: runtimeInstrument },
   barn: { render: barnInstrument },
   bough: { render: boughInstrument },
