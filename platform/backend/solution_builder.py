@@ -333,12 +333,12 @@ def validate_solution(payload: dict[str, Any]) -> dict[str, Any]:
     raw_nodes = payload.get("nodes", [])
     raw_edges = payload.get("edges", [])
     for name, value in (("nodes", raw_nodes), ("edges", raw_edges)):
-        if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+        if not isinstance(value, (list, tuple)) or any(not isinstance(item, dict) for item in value):
             errors.append({"kind": "schema", "message": f"{name} must be a list of objects"})
     if errors:
         return {"valid": False, "errors": errors, "warnings": [],
-                "nodeCount": len(raw_nodes) if isinstance(raw_nodes, list) else 0,
-                "edgeCount": len(raw_edges) if isinstance(raw_edges, list) else 0}
+                "nodeCount": len(raw_nodes) if isinstance(raw_nodes, (list, tuple)) else 0,
+                "edgeCount": len(raw_edges) if isinstance(raw_edges, (list, tuple)) else 0}
 
     ids: set[str] = set()
     node_caps: dict[str, Capability] = {}
